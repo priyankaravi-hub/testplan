@@ -4,7 +4,8 @@
 This test plan defines the interoperability verification for the Vega 8 platform. It ensures that the switch ASIC, SONiC software, and various physical media (DAC, AEC, AOC, and Optical Transceivers) work together without signal degradation or protocol instability.
 
 ## 2. Test Hardware Matrix (Inventory)
-### 2.1 Copper & Active Cables(DAC,AEC, AOC)The following media combinations are required for full coverage. Each is tested against the procedures in Section 3.
+### 2.1 Copper & Active Cables(DAC,AEC, AOC)
+The following media combinations are required for full coverage. Each is tested against the procedures in Section 3.
 
 | Speed |  SerDes | Lengths to Test |
 |:---|:---|:---|
