@@ -4,23 +4,38 @@
 This test plan defines the interoperability verification for the Vega 8 platform. It ensures that the switch ASIC, SONiC software, and various physical media (DAC, AEC, AOC, and Optical Transceivers) work together without signal degradation or protocol instability.
 
 ## 2. Test Hardware Matrix (Inventory)
-The following media combinations are required for full coverage. Each is tested against the procedures in Section 3.
+### 2.1 Copper & Active Cables(DAC,AEC, AOC)The following media combinations are required for full coverage. Each is tested against the procedures in Section 3.
 
-| ID | Category | Speed | Media/Reach | SerDes | Expected FEC |
-|:---|:---|:---|:---|:---|:---|
-| **M-01** | Optical | 1.6T | SMF / 500m | 8x200G | RS-FEC |
-| **M-02** | Optical | 800G | MMF / 100m | 8x100G | RS-FEC |
-| **M-03** | DAC | 400G | Copper / 1m | 8x50G | RS-FEC |
-| **M-04** | DAC | 200G | Copper / 3m | 4x50G | RS-FEC |
-| **M-05** | AEC | 800G | Active / 5m | 8x100G | RS-FEC |
-| **M-06** | AOC | 400G | Fiber / 10m | 4x100G | RS-FEC |
+| Speed |  SerDes | Lengths to Test |
+|:---|:---|:---|
+| 200G | 2/100, 4/50, 8/25 | 1m, 3m, 5m, 7m, 10m |
+| 400G | 8/50, 4/100 | 1m, 3m, 5m, 7m, 10m |
+| 800G | 2/400, 4/200, 8/100| 1m, 3m, 5m, 7m, 10m  |
+
+
+### 2.2 Optical Transceivers
+Optical testing focuses on fiber types (SMF/MMF) and connector stability.
+
+| Speed |  Fiber / Reach | Connector |
+|:---|:---|:---|
+| 1.6T | SMF / 500m | Dual MPO-12, MPO-16 |
+| 1.6T | SMF / 2km | Dual Duplex LC |
+| 800G | MMF / 100m | MPO-16 |
+| 800G | SMF / 500m | MPO-12, MPO-16 |
+| 800G | SMF / 2km | Duplex LC |
+| 800G | SMF / 10km | Duplex LC |
+| 400G | MMF / 100m | MPO-12 |
+| 400G | SMF / 500m | MPO-12 |
+| 400G | SMF / 2km | Duplex LC |
+| 400G | SMF / 10km | Duplex LC |
 
 ## 3. Test Cases
 
-### 3.1 EEPROM Identification & Verification
-**Objective:** Confirm the switch correctly identifies the cable/module properties.
-- **Action:** Insert media and run `sfputil read-eeprom -p <port>`.
-- **Verification:** Checksum must be **Valid**. Vendor and Part Number must match the hardware.
+### 3.1 Physical Layer && EEPROM Validation
+**Objective:** Verify that the switch correctly recognizes the hardware and reads its internal identity without errors
+- **Step 1:**
+- - **Action:** Insert the transceiver/cable into the target port.
+- - **Verification:** Checksum must be **Valid**. Vendor and Part Number must match the hardware.
 
 ### 3.2 Link Training & Stability (Soak Test)
 **Objective:** Ensure 0% packet loss over a 24-hour period under thermal load.
