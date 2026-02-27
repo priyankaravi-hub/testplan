@@ -10,7 +10,7 @@ This test plan defines the interoperability verification for the Vega 8 platform
 |:---|:---|:---|
 | 200G | 2/100, 4/50, 8/25 | 1m, 3m, 5m, 7m, 10m |
 | 400G | 8/50, 4/100 | 1m, 3m, 5m, 7m, 10m |
-| 800G | 2/400, 4/200, 8/100| 1m, 3m, 5m, 7m, 10m  |
+| 800G | 4/200, 8/100| 1m, 3m, 5m, 7m, 10m  |
 
 
 ### 2.2 Optical Transceivers
@@ -34,22 +34,69 @@ Optical testing focuses on fiber types (SMF/MMF) and connector stability.
 ### 3.1 Physical Layer && EEPROM Validation
 **Objective:** Verify that the switch correctly recognizes the hardware and reads its internal identity without errors
 - **Step 1:**
-- - **Action:** Insert the transceiver/cable into the target port.
-- - **Verification:** Checksum must be **Valid**. Vendor and Part Number must match the hardware.
+  - **Action:** Insert the transceiver/cable into the target port.
+  - **Verification:** `show interface transceiver presence` returns **Present**.
+- **Step 2:**
+  - **Action:** Read the module's identity data.
+  - **Verification:** `show interface transceiver eeprom` displays correct Vendor, PN and Serial.
+- **Step 3:**
+  - **Action:** Validate data integrity of the chip.
+  - **Verification:** `sfputil read--eeprom -p <port>` shows a **Valid Checksum**
 
-### 3.2 Link Training & Stability (Soak Test)
-**Objective:** Ensure 0% packet loss over a 24-hour period under thermal load.
-- **Action:** Inject 100% line-rate traffic. Establish OSPF adjacency.
-- **Verification:** - `show interfaces status`: Oper Status is UP.
-  - `show ip ospf neighbor`: Neighbor is FULL for 24 hours.
-  - `show interface counters`: CRC and Symbol Errors must be **0**.
+### 3.2 Link Training & Auto-Negotiation
+**Objective:** Ensure the switch and media successfully "negotiate" the highesr possible speed and apply the necessary error correction (FEC).
+- **Step 1:**
+  - **Action:** Configure the port to its maximum rated speed.
+  - **Verification:** `show interface status` returns **Present**.
+- **Step 2:**
+  - **Action:** Check the error correction protocol.
+  - **Verification:** `show interface status` displays FEC: rs( Reed-Solomon)
+- **Step 3:**
+  - **Action:** Cross-reference hardware capability.
+  - **Verification:** `show interface transceiver eeprom -d` confirms the negotiated speed matches the module's max capability.
 
-### 3.3 Physical Stress (Hot-Plug)
-**Objective:** Verify the software (pmon/sfputil) can handle 100 rapid insertion cycles.
-- **Action:** Physically pull and re-insert the cable 100 times.
-- **Verification:** Link must reach "Up" state within 3 seconds of every insertion.
+### 3.3 Lane Alignment & Signal Quality
+**Objective:** Confirm that multi-lane signals(400G/800G) are synchronized and physically healthy.
+- **Step 1:**
+  - **Action:** Check per-lane optical/electrical power via DOM
+  - **Verification:** `show interface transceiver eeprom <Ethx> --dom>` shows all lanes active, balanced power levels.
+- **Step 2:**
+  - **Action:** Verify PCS (Physical Coding Sublayer) sync.
+  - **Verification:** Status shows PCS Lock: OK.
+- **Step 3:**
+  - **Action:** Measure timing difference between lanes.
+  - **Verification:** Lane Skew is recorded at < 500ps.
 
-### 3.4 Lane Alignment & Skew
-**Objective:** Confirm all SerDes lanes are synchronized.
-- **Action:** Run `show interfaces transceiver eeprom <port> --dom`.
-- **Verification:** **PCS Lock** must be OK. **Lane Skew** must be < 500ps.
+
+### 3.4 Stress & Durability
+**Objective:** Ensure the software and hardware can handle repeated physical and logical changes.
+- **Step 1:**
+  - **Action:** **Link Flap:** Shut down and restart the interface via CLI.
+  - **Verification:** Link returns **Oper: up** at the correct speed/FEC in <2 seconds.
+- **Step 2:**
+  - **Action:** **Hot-Plug Stress:** Physically pull and re-insert the cable 100 times.
+  - **Verification:** Port returns to up status and EEPROM is readable on every cycle.
+- **Step 3:**
+  - **Action:** **24-Hour Line-Rate Soak:** Inject 100% traffic with OSPF enabled.
+  - **Verification:** 0 OSPF flaps; `show interface counters` reports 0 CRC/Symbol errors.
+- **Step 4:**
+  - **Action:** **Breakout configuration:** Configure port for 4x100G splitting.
+  - **Verification:** `config-db.json` shows sub-interfaces; all 4 ports reach Oper: up
+
+
+### 3.5 Protocol Stability & Data Integrity
+**Objective:** Confirm the link stays stable under high heat and maximum traffic for a long duration.
+- **Step 1:**
+  - **Action:** Establish OSPF adjacency with a peer.
+  - **Verification:** `show ip ospf neighbor` shows state as FULL.
+- **Step 2:**
+  - **Action:** Run 100% line-rate traffic for 24 hours..
+  - **Verification:** `show interface counters` shows Zero CRC Errors and Zero Symbol Errors.
+- **Step 3:**
+  - **Action:** Monitor error rates before correction.
+  - **Verification:** `show interface transceiver eeprom <EthX> --dom` shows Pre-FEC BER within safe limits (< 10^-5).
+- **Step 4:**
+  - **Action:** **Failure Recovery: **Manually pull the cable during traffic.
+  - **Verification:** Logs show OSPF neighbor goes down; measure and record the recovery time when re-inserted.
+  
+
