@@ -1,0 +1,102 @@
+# Static Route
+
+## 1. Overview
+This test plan defines the test cases for the static routing feature on Scale-Out platform
+
+## 2. Test Hardware Matrix (Inventory)
+### 2.1 Copper & Active Cables(DAC,AEC, AOC)
+The following media combinations are required for full coverage. Each is tested against the procedures in Section 3.
+
+| Speed |  SerDes | Lengths to Test |
+|:---|:---|:---|
+| 200G | 2/100, 4/50, 8/25 | 1m, 3m, 5m, 7m, 10m |
+| 400G | 8/50, 4/100 | 1m, 3m, 5m, 7m, 10m |
+| 800G | 4/200, 8/100| 1m, 3m, 5m, 7m, 10m  |
+
+
+### 2.2 Optical Transceivers
+Optical testing focuses on fiber types (SMF/MMF) and connector stability.
+
+| Speed |  Fiber / Reach | Connector |
+|:---|:---|:---|
+| 1.6T | SMF / 500m | Dual MPO-12, MPO-16 |
+| 1.6T | SMF / 2km | Dual Duplex LC |
+| 800G | MMF / 100m | MPO-16 |
+| 800G | SMF / 500m | MPO-12, MPO-16 |
+| 800G | SMF / 2km | Duplex LC |
+| 800G | SMF / 10km | Duplex LC |
+| 400G | MMF / 100m | MPO-12 |
+| 400G | SMF / 500m | MPO-12 |
+| 400G | SMF / 2km | Duplex LC |
+| 400G | SMF / 10km | Duplex LC |
+
+## 3. Test Cases
+
+### 3.1 IPv4 Configuration Test Cases
+**Objective:** Verify that the switch correctly recognizes the hardware and reads its internal identity without errors
+- **Scenario 1:**
+  - Configure `ip route <prefix> <next-hop>`
+  - **Expected result:** Route is installed in the routing table; next-hop is reachable.
+- **Scenario 2:**
+  - Configure `ip route <prefix> <interface name>`
+  - **Verification:** `show interface transceiver eeprom` displays correct Vendor, PN and Serial.
+- **Step 3:**
+  - **Action:** Validate data integrity of the chip.
+  - **Verification:** `sfputil read--eeprom -p <port>` shows a **Valid Checksum**
+
+### 3.2 Link Training & Auto-Negotiation
+**Objective:** Ensure the switch and media successfully "negotiate" the highesr possible speed and apply the necessary error correction (FEC).
+- **Step 1:**
+  - **Action:** Configure the port to its maximum rated speed.
+  - **Verification:** `show interface status` returns **Present**.
+- **Step 2:**
+  - **Action:** Check the error correction protocol.
+  - **Verification:** `show interface status` displays FEC: rs( Reed-Solomon)
+- **Step 3:**
+  - **Action:** Cross-reference hardware capability.
+  - **Verification:** `show interface transceiver eeprom -d` confirms the negotiated speed matches the module's max capability.
+
+### 3.3 Lane Alignment & Signal Quality
+**Objective:** Confirm that multi-lane signals(400G/800G) are synchronized and physically healthy.
+- **Step 1:**
+  - **Action:** Check per-lane optical/electrical power via DOM
+  - **Verification:** `show interface transceiver eeprom <Ethx> --dom>` shows all lanes active, balanced power levels.
+- **Step 2:**
+  - **Action:** Verify PCS (Physical Coding Sublayer) sync.
+  - **Verification:** Status shows PCS Lock: OK.
+- **Step 3:**
+  - **Action:** Measure timing difference between lanes.
+  - **Verification:** Lane Skew is recorded at < 500ps.
+
+
+### 3.4 Stress & Durability
+**Objective:** Ensure the software and hardware can handle repeated physical and logical changes.
+- **Step 1:**
+  - **Action:** **Link Flap:** Shut down and restart the interface via CLI.
+  - **Verification:** Link returns **Oper: up** at the correct speed/FEC in <2 seconds.
+- **Step 2:**
+  - **Action:** **Hot-Plug Stress:** Physically pull and re-insert the cable 100 times.
+  - **Verification:** Port returns to up status and EEPROM is readable on every cycle.
+- **Step 3:**
+  - **Action:** **24-Hour Line-Rate Soak:** Inject 100% traffic with OSPF enabled.
+  - **Verification:** 0 OSPF flaps; `show interface counters` reports 0 CRC/Symbol errors.
+- **Step 4:**
+  - **Action:** **Breakout configuration:** Configure port for 4x100G splitting.
+  - **Verification:** `config-db.json` shows sub-interfaces; all 4 ports reach Oper: up
+
+
+### 3.5 Protocol Stability & Data Integrity
+**Objective:** Confirm the link stays stable under high heat and maximum traffic for a long duration.
+- **Step 1:**
+  - **Action:** Establish OSPF adjacency with a peer.
+  - **Verification:** `show ip ospf neighbor` shows state as FULL.
+- **Step 2:**
+  - **Action:** Run 100% line-rate traffic for 24 hours..
+  - **Verification:** `show interface counters` shows Zero CRC Errors and Zero Symbol Errors.
+- **Step 3:**
+  - **Action:** Monitor error rates before correction.
+  - **Verification:** `show interface transceiver eeprom <EthX> --dom` shows Pre-FEC BER within safe limits (< 10^-5).
+- **Step 4:**
+  - **Action:** **Failure Recovery: **Manually pull the cable during traffic.
+  - **Verification:** Logs show OSPF neighbor goes down; measure and record the recovery time when re-inserted.
+  
