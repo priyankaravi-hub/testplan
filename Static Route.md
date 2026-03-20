@@ -1,86 +1,138 @@
-# Static Route
+# Title: SONiC Static Routing (IPv4/IPv6) Test Plan
+
+## Table of Contents
+- [1. Overview](#1-overview)
+- [2. Scope](#2-scope)
+- [3. Test Setup Environment](#3-test-setup-environment)
+    - [3.1 Components](#31-components)
+    - [3.2 Required Services on DUT](#32-required-services-on-dut)
+    - [3.3 Observability / Evidence](#33-observability--evidence)
+- [4. Test Cases](#4-test-cases)
+    - [4.1 IPv4-BASE Baseline Configuration](#41-ipv4-base-baseline-configuration)
+    - [4.2 IPv6-BASE Baseline Configuration](#42-ipv6-base-baseline-configuration)
+    - [4.3 RT-VRF Virtual Routing and Forwarding](#43-rt-vrf-virtual-routing-and-forwarding)
+    - [4.4 RT-ADV Advanced Routing Logic (AD/ECMP)](#44-rt-adv-advanced-routing-logic-adecmp)
+    - [4.5 RT-GRD Guardrails and Negative Tests](#45-rt-grd-guardrails-and-negative-tests)
+    - [4.6 RT-RES Resiliency and Persistence](#46-rt-res-resiliency-and-persistence)
+    - [4.7 RT-SCALE Scalability and Stress](#47-rt-scale-scalability-and-stress)
+- [5. Cleanup](#5-cleanup)
+- [6. Reference](#6-reference)
+
+---
 
 ## 1. Overview
-This test plan defines the test cases for the static routing feature on Scale-Out platform
+Static routing is the manual definition of paths in the routing table. Unlike dynamic protocols, static routes are predictable and low-overhead. In SONiC, these routes are managed via the uCLI/CLI, stored in the Redis `CONFIG_DB`, and programmed into the ASIC (Spectrum 4) via the SAI (Switch Abstraction Interface). This plan validates IPv4 and IPv6 static routing capabilities for the Vega 8/SkyForce platforms.
 
-## 2. Platform
-Vega 8 switches, Spectrum 4 ASIC 
+## 2. Scope
+This test plan covers:
+- IPv4 and IPv6 static route configuration (Next-hop IP, Interface, or both).
+- Multi-tenancy support via VRF isolation.
+- Route preference control using Administrative Distance (AD).
+- Load balancing via Equal-Cost Multi-Path (ECMP).
+- System guardrails (unreachable next-hops, down interfaces).
+- Configuration persistence across reboots.
 
-## 3. Test Cases
+## 3. Test Setup Environment
 
-### 3.1 IPv4 Configuration Test Cases
-**Objective:** 
-- **Scenario 1:**
-  - Configure `ip route <prefix> <next-hop>`
-  - **Expected result:** Route is installed in the routing table; next-hop is reachable.
-- **Scenario 2:**
-  - Configure `ip route <prefix> <interface name>`
-  - **Expected result:** Route is resolved via the specified interface.
-- **Scenario 3**
-  - Configure route with both interface and next-hop
-  - **Expected Result:** System validates that next hop is reachable via that specific interface
-- **Scenario 4**
-  - Configure IPv4 route within a specific VRF.
-  - **Expected Result:** Route is isolated to tenant VRF and does not appear un the default VRF.
-- **Scenario 5**
-  - Configure route with a custom administrative distance.
-  - **Expected Result:** Route is configured with the specified distance; lower distance is preferred.
+### 3.1 Components
+- **DUT:** Vega 8 / SkyForce 9000 Switch running Super SONiC.
+- **Neighbor A:** Upstream Router/Host (192.168.1.1 / 2001:db8:aaaa::1).
+- **Neighbor B:** Upstream Router/Host (192.168.2.1 / 2001:db8:bbbb::1).
+- **Traffic Generator:** For verifying data plane forwarding and ECMP hashing.
 
-### 3.2 IPv6 Configuration Test Cases
-**Objective:** 
-- **Scenario 6:**
-  - Configure `ipv6 route <prefix> <interface-name>`
-  - **Expected Result:** Route is installed in IPv6 routing table
-- **Scenario 7:**
-  - Configure `ipv6 route <prefix> <interface-name>`
-  - **Expected Result:** Next-hop is resolved via the interface.
-- **Scenario 8:**
-  - Configure IPv6 route in tenant VRF
-  - **Expected Result:** VRF isolation is maintained; VRF must exist for successful config.
-- **Scenario 9:**
-  - Set custom administrative distance for IPv6.
-  - **Expected Result:** Distance is applied correctly. 
+### 3.2 Required Services on DUT
+- **fpmsyncd:** Syncs routes from FRR to Redis DB.
+- **neighsyncd:** Manages ARP/Neighbor discovery for next-hop validation.
+- **orchagent:** Programs the ASIC based on DB entries.
 
-### 3.3 VRF
-**Objective:** Confirm that multi-lane signals(400G/800G) are synchronized and physically healthy.
-- **Step 1:**
-  - **Action:** Create VRF - `vrf instance Tenant_A`
-  - **Verification:** Check `show vrf`
-- **Step 2:**
-  - **Action:** Add route - `ip route vrf Tenant_A 10.1.1.0/24 172.16.1.1`
-  - **Verification:** Check `show ip route vrf Tenant_A`
-- **Step 3:**
-  - **Action:** Verify isolation - Ping `10.1.1.1` from the Default VRF.
-  - **Verification:** Ping fails.
-- **Step 4:**
-  - **Action:** Verify routing - Ping `10.1.1.1` from Tenant_A VRF.
-  - **Verification:** Ping succeeds.
+### 3.3 Observability / Evidence
+- **Control Plane:** `show ip route static`, `vtysh -c "show ip route"`.
+- **Database:** `redis-cli -n 4 HGETALL "STATIC_ROUTE_TABLE|..."`.
+- **Data Plane:** `ping`, `traceroute`, ASIC-level table dumps (e.g., `bcmcmd "l3 defip show"`).
 
+---
 
-### 3.4 Operational and Guardrail test cases
-**Objective:** Verify the 'Show' commands, system safety, and persistence
-- **Visibility**
-  - **Action:** Execute `show ip route static` and `show ipv6 route static`.
-  - **Verification:** Ensure only static routes are displayed.
-  - **Action:** Execute `show ip route <prefix>` to verify detailed infomration for a specific route.
-  - **Verification:** Ensure it shows the lineage of the route - the next-hop, the interface and the Administrative Distance.
-    
-- **Guardrails**
-  - **Action:** Attempt to configure a next-hop that is not reachable.
-  - **Verification:** The command maybe accepted into the config but the route should NOT appear in the active routing table.
-  - **Action:** Configure a route using an interface that is "Down" or non-existent.
-  - **Verification:** The command should be accepted, but the route must remian inactive until you send 'no shut' command to the interface.
-  - **Action:** Verify if no distance is specified, the default administrative distance is 1.
-  - **Verification:** If you type `ip route 1.1.1.1/32 2.2.2.2` and check it with `show ip route 1.1.1.1`, the distance must show 1
+## 4. Test Cases
 
-- **Acceptance Criteria**
-  - **Action:** Save the configuration and reboot the switch 
-  - **Verification:** Verify all static routes are active immediately after boot.
-  - **Action:** Verify traffic is forwarded correctly to the configured next-hop
-  - **Verification:** Ping must succeed
-  - **Action:** Ensure the static routes operate independently of dynamic protocols like BGP or OSPF
-  - **Verification:** Static routes should not need BGP or OSPF to be turned on to function
+### 4.1 IPv4-BASE Baseline Configuration
 
+#### 4.1.1 IPv4-BASE-01 Next-hop as IP
+- **Steps:** `ip route 10.10.10.0/24 192.168.1.1`
+- **Verification:** `show ip route 10.10.10.0`. Check if next-hop is 192.168.1.1.
+- **Result:** Route installed in RIB/FIB; Ping to 10.10.10.1 succeeds.
 
+#### 4.1.2 IPv4-BASE-02 Next-hop as Interface
+- **Steps:** `ip route 10.20.20.0/24 Ethernet1`
+- **Verification:** `show ip route`. Ensure route points to the egress interface.
 
-  
+#### 4.1.3 IPv4-BASE-03 Combined Interface and IP
+- **Steps:** `ip route 10.30.30.0/24 Ethernet1 192.168.1.5`
+- **Verification:** System validates 192.168.1.5 is reachable only via Ethernet1.
+
+### 4.2 IPv6-BASE Baseline Configuration
+
+#### 4.2.1 IPv6-BASE-01 Basic IPv6 Static Route
+- **Steps:** `ipv6 route 2001:db8:cccc::/64 2001:db8:aaaa::1`
+- **Expected Result:** `show ipv6 route` displays the static entry.
+
+### 4.3 RT-VRF Virtual Routing and Forwarding
+
+#### 4.3.1 RT-VRF-01 Tenant Isolation
+- **Steps:** - Create VRF: `vrf instance Tenant_A`
+    - Add route: `ip route vrf Tenant_A 10.1.1.0/24 172.16.1.1`
+- **Verification:** - `ping 10.1.1.1` (from Default VRF) -> **Expected: FAIL**
+    - `ping vrf Tenant_A 10.1.1.1` -> **Expected: SUCCESS**
+
+### 4.4 RT-ADV Advanced Routing Logic (AD/ECMP)
+
+#### 4.4.1 RT-ADV-01 Floating Static Route (AD)
+- **Steps:**
+    - **Primary:** `ip route 10.200.1.0/24 192.168.1.1` (AD 1)
+    - **Backup:** `ip route 10.200.1.0/24 192.168.1.2 200` (AD 200)
+- **Verification:** Only .1.1 is in RIB. Shut Ethernet1; verify .1.2 is installed.
+
+#### 4.4.2 RT-ADV-02 ECMP Load Balancing
+- **Steps:**
+    - **Path A:** `ip route 10.77.77.0/24 Ethernet1 192.168.1.1`
+    - **Path B:** `ip route 10.77.77.0/24 Ethernet2 192.168.2.1`
+- **Verification:** `show ip route 10.77.77.0`. Both next-hops marked with `*`. Verify ASIC programs both paths in the hardware table via `show ip route vrf default 10.77.77.0/24`.
+
+### 4.5 RT-GRD Guardrails and Negative Tests
+
+#### 4.5.1 RT-GRD-01 Next-hop Reachability
+- **Steps:** Configure route to an unreachable IP.
+- **Expected Result:** Command accepted; route status is "Inactive" in `show ip route`.
+
+#### 4.5.2 RT-GRD-02 Interface Down Behavior
+- **Steps:** `ip route 5.5.5.0/24 Ethernet10`. Shutdown Ethernet10.
+- **Expected Result:** Route removed from active RIB. Perform `no shut`; route returns.
+
+### 4.6 RT-RES Resiliency and Persistence
+
+#### 4.6.1 RT-RES-01 Reload Persistence
+- **Steps:** `write memory`, `sudo reboot`.
+- **Expected Result:** All routes restored upon boot. Check `config_db.json`.
+
+### 4.7 RT-SCALE Scalability and Stress
+
+#### 4.7.1 RT-SCALE-01 Max Routes
+- **Steps:** Inject 1,000 unique static routes via script.
+- **Expected Result:** CPU stable; all 1,000 routes visible in `show ip route summary`.
+
+#### 4.7.2 RT-SCALE-02 Max ECMP Fan-out
+- **Steps:** Configure 16 different next-hops for 10.100.100.0/24.
+- **Expected Result:** All 16 paths active; traffic hashes across all 16 egress ports.
+
+---
+
+## 5. Cleanup
+- `no ip route <prefix> <next-hop>` for all test entries.
+- `no vrf instance Tenant_A`.
+- `config save`.
+
+---
+
+## 6. Reference
+- **JIRA:** ASV2-1971
+- **EOS User Manual:** Chapter 14.1 (IPv4/IPv6 Routing)
+- **SONiC Community Design Doc:** Static Route HLD
