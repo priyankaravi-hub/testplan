@@ -1,0 +1,32 @@
+{
+  "backup_date": "2026-03-27",
+  "source_project": {
+    "key": "ASV2",
+    "name": "Upscale AI Software",
+    "id": "10302",
+    "projectTypeKey": "software",
+    "simplified": true,
+    "site": "bugatti-asic.atlassian.net",
+    "cloudId": "1a3482b9-d041-4787-bd1b-bf1358cdfb00",
+    "board": 104,
+    "migrated_on": "2026-02-26T21:54:00Z"
+  },
+  "issue_types": [
+    {"id": "10270", "name": "Bug", "subtask": false, "hierarchyLevel": 0},
+    {"id": "10271", "name": "Epic", "subtask": false, "hierarchyLevel": 1},
+    {"id": "10272", "name": "Story", "subtask": false, "hierarchyLevel": 0},
+    {"id": "10273", "name": "Subtask", "subtask": true, "hierarchyLevel": -1},
+    {"id": "10274", "name": "Task", "subtask": false, "hierarchyLevel": 0}
+  ],
+  "workflow_statuses": [
+    {"id": "10339", "name": "OPEN", "category": "To Do", "categoryId": 2},
+    {"id": "10340", "name": "In Progress", "category": "In Progress", "categoryId": 4},
+    {"id": "10341", "name": "Done", "category": "Done", "categoryId": 3}
+  ],
+  "priorities_used": [
+    {"id": "3", "name": "Medium"}
+  ],
+  "components": [],
+  "versions": [],
+  "labels": []
+}
